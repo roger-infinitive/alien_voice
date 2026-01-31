@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "file_io.h"
-#include "time.h"
+#include "assert.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include "windows.h"
@@ -123,11 +123,53 @@ struct CMU_Cluster {
     char c;
     CMU_Entry* first;
     int count;
+    
+    int sub_cluster_count;
+    CMU_Cluster* sub_clusters;
 };
 
+#define MAX_CLUSTERS 2048
 int total_clusters;
+CMU_Cluster root_cluster;
 CMU_Cluster* clusters;
 
+CMU_Cluster* InsertCluster(CMU_Entry* entry, int text_index) {
+    assert(total_clusters < MAX_CLUSTERS);
+
+    CMU_Cluster* cluster = &clusters[total_clusters];
+    cluster->c = entry->key.text[text_index];
+    cluster->first = entry;
+    cluster->count = 1;
+    cluster->sub_cluster_count = 0;
+    cluster->sub_clusters = 0;
+    
+    total_clusters += 1;
+    return cluster;
+}
+
+void BuildSubClusters(CMU_Cluster* cluster, int text_index) {
+    CMU_Cluster* sub_cluster = InsertCluster(cluster->first, text_index);
+    cluster->sub_clusters = sub_cluster;
+    cluster->sub_cluster_count = 1;
+            
+    for (int j = 1; j < cluster->count; j++) {
+        CMU_Entry* entry = &cluster->first[j];
+        
+        if (entry->key.length <= text_index) {
+            sub_cluster->count += 1;
+            continue;
+        } 
+        
+        if (sub_cluster->c != entry->key.text[text_index]) {
+            sub_cluster = InsertCluster(entry, text_index);
+            cluster->sub_cluster_count += 1;
+        } else {
+            sub_cluster->count += 1;
+        }
+    }        
+}
+
+// Slow version (used to demonstrate speed differences), use GetPhones() instead.
 bool GetPhonesLinear(const char* search, ParsedToken* token) {
     int search_length = CStringLength(search);
     
@@ -145,17 +187,24 @@ bool GetPhonesLinear(const char* search, ParsedToken* token) {
 bool GetPhones(const char* search, ParsedToken* token) {
     int search_length = CStringLength(search);
     
-    for (int j = 0; j < total_clusters; j++) {
-        CMU_Cluster* cluster = &clusters[j];
+    for (int i = 0; i < root_cluster.sub_cluster_count; i++) {
+        CMU_Cluster* cluster = &root_cluster.sub_clusters[i];
         if (cluster->c == search[0]) {
-            for (int k = 0; k < cluster->count; k++) {
-                CMU_Entry* entry = &cluster->first[k];
-                if (StringEquals(search, search_length, entry->key.text, entry->key.length)) {
-                    *token = entry->value;
-                    return true;
+            for (int j = 0; j < cluster->sub_cluster_count; j++) {
+                CMU_Cluster* sub_cluster = &cluster->sub_clusters[j];
+                
+                // nocheckin: what if its a single letter?
+                if (sub_cluster->c == search[1]) {
+                    for (int k = 0; k < sub_cluster->count; k++) {
+                        CMU_Entry* entry = &sub_cluster->first[k];
+                        if (StringEquals(search, search_length, entry->key.text, entry->key.length)) {
+                            *token = entry->value;
+                            return true;
+                        }
+                    }
                 }
             }
-        }            
+        }
     }
     
     return false;
@@ -197,32 +246,20 @@ int main(int argc, char** argv) {
         current_entry++;
     }
     
+    
     // Build an acceleration structure
-
-    int MAX_CLUSTERS = 256;
-    clusters = (CMU_Cluster*)HeapAlloc(MAX_CLUSTERS * sizeof(CMU_Cluster));
-    
-    CMU_Cluster* cluster = &clusters[0];
-    cluster->c = entries[0].key.text[0];
-    cluster->first = &entries[0];
-    cluster->count = 1;
-    total_clusters += 1;
-    
-    for (int i = 1; i < entry_count; i++) {
-        char c = entries[i].key.text[0];    
-        if (cluster->c != c) {
-            if (total_clusters == MAX_CLUSTERS) {
-                fprintf(stderr, "Not enough cluster storage!");
-                return 1;
-            }
+    {
+        clusters = (CMU_Cluster*)HeapAlloc(MAX_CLUSTERS * sizeof(CMU_Cluster));
         
-            cluster = &clusters[total_clusters];
-            cluster->c = entries[i].key.text[0];
-            cluster->first = &entries[i];
-            cluster->count = 1;
-            total_clusters += 1;
-        } else {
-            cluster->count += 1;
+        root_cluster.c = entries[0].key.text[0];
+        root_cluster.first = &entries[0];
+        root_cluster.count = entry_count;
+        
+        BuildSubClusters(&root_cluster, 0);
+
+        for (int i = 0; i < root_cluster.sub_cluster_count; i++) {
+            CMU_Cluster* cluster = &root_cluster.sub_clusters[i];
+            BuildSubClusters(cluster, 1);
         }
     }
     
