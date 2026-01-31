@@ -8,3 +8,6 @@ build/vc140.pdb
 build/*.pdb
 build/*.ilk
 build/*.sln
+*.rdi
+*.ilk
+*.pdb

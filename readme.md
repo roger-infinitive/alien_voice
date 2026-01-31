@@ -1,0 +1,1 @@
+CMUDict: https://github.com/cmusphinx/cmudict

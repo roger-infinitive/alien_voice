@@ -16,7 +16,7 @@ for %%a in (%*) do (
     	set BUILD_FLAGS=/Od /Zi /MDd /D "_DEBUG"
 		set PDB_PATH=%BUILD_DIR%\vc140.pdb
     	set LIB_PATH=libraries/debug/x64
-    	set OUTPUT_NAME=%DEBUG_EXE_NAME%
+    	set OUTPUT_NAME=%EXE_NAME%.exe
     	echo Using DEBUG build
     )
 )
