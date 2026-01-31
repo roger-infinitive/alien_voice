@@ -1,0 +1,10 @@
+*.suo
+*.obj
+
+config.bat
+
+build/vc140.pdb
+*.exe
+build/*.pdb
+build/*.ilk
+build/*.sln
