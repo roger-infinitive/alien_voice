@@ -199,4 +199,19 @@ void PrintBytes(void* data, size_t size) {
     }
 }
 
+bool StringEquals(const char* a, int a_length, const char* b, int b_length) {
+    if (a_length != b_length) {
+        return false;
+    }
+    
+    for (int j = 0; j < b_length; j++) {
+        if (b[j] == a[j]) {
+            continue;
+        }
+        return false;
+    }
+    
+    return true;
+}
+
 #endif //STRING_UTILITY_H
