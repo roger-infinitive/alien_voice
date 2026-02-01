@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
         sentence = argv[args_parsed];        
     }
 
-    const char* dict_filepath = "data/cmudict.dict";
+    const char* dict_filepath = "data/cmudict/cmudict.dict";
     CMU_Dictionary cmu_dict = {};
     if (!LoadDictionary(dict_filepath, &cmu_dict, HeapAllocator)) {
         return 1;

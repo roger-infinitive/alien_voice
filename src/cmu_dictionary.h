@@ -75,11 +75,9 @@ void BuildSubClusters(CMU_Dictionary* dict, CMU_Cluster* cluster, int text_index
 // alphabetically sorted otherwise the search functions are extremely likely to fail.
 
 bool LoadDictionary(const char* filepath, CMU_Dictionary* dict, Allocator allocator) {
-    const char* dict_filepath = "data/cmudict.dict";
-    
     MemoryBuffer mb = {};
-    if (!ReadEntireFileAndNullTerminate(dict_filepath, &mb, allocator)) {
-        fprintf(stderr, "Failed to read cmudict.dict.\n");
+    if (!ReadEntireFileAndNullTerminate(filepath, &mb, allocator)) {
+        fprintf(stderr, "Failed to read %s.\n", filepath);
         return false;
     }
     
@@ -93,7 +91,7 @@ bool LoadDictionary(const char* filepath, CMU_Dictionary* dict, Allocator alloca
         current++;
     }
 
-    printf("Found %d entries in %s\n", dict->entry_count, dict_filepath);
+    printf("Found %d entries in %s\n", dict->entry_count, filepath);
     dict->entries = (CMU_Entry*)allocator.alloc(dict->entry_count * sizeof(CMU_Entry));
     
     int current_entry = 0;

@@ -1,1 +1,2 @@
-CMUDict: https://github.com/cmusphinx/cmudict
+Uses CMUDict: https://github.com/cmusphinx/cmudict
+
