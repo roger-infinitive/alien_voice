@@ -2,6 +2,8 @@
 #define STRING_UTILITY_H
 
 #include "utility.h"
+#include <string.h>
+#include <ctype.h>
 
 u32 CStringLength(const char* str) {
     if (str == 0) { return 0; }
@@ -104,7 +106,19 @@ char* EatWhitespace(char* start) {
     return start;
 }
 
-void ToLowerCase(const char* src, char* dest, u32 destSize);
+void ToLowerCase(const char* src, char* dest, u32 destSize) {
+    u32 i;
+    for (i = 0; src[i] && i < destSize - 1; ++i) {
+        dest[i] = tolower((u8)src[i]);
+    }
+    dest[i] = '\0';
+}
+
+void ToLowerCase(char* str, int length) {
+    for (int i = 0; i < length; i++) {
+        str[i] = tolower(str[i]);
+    }
+}
 
 bool IsEndOfLine(char c) {
     return c == '\n' || c == '\r';

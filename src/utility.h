@@ -172,14 +172,13 @@ typedef uint64_t u64;
     #define LOG_TRACE(message, ...) //do nothing
 #endif
 
-unsigned int Align(unsigned int value, unsigned int alignment)
-{
+unsigned int Align(unsigned int value, unsigned int alignment) {
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
-typedef void* (*AllocFunc)(size_t size);
-typedef void* (*ReallocFunc)(void*, size_t size);
-typedef void (*FreeFunc)(void*);
+typedef void* (*AllocFunc)   (size_t size);
+typedef void* (*ReallocFunc) (void*, size_t size);
+typedef void  (*FreeFunc)    (void*);
 
 struct Allocator {
     AllocFunc alloc;

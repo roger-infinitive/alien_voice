@@ -1,5 +1,8 @@
 @echo off
-call config.bat
+
+set BUILD_DIR=build
+set EXE_NAME=alien_voice
+set VCVARS_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat
 
 setlocal
 
@@ -9,16 +12,22 @@ REM Vars
 set BUILD_FLAGS=/MD /O2 /GL /Ob2 /Oy
 set LIB_PATH=libraries/x64
 set OUTPUT_NAME=%EXE_NAME%.exe
+set FIRST_SRC=main.cpp
 
 REM Check arguments
 for %%a in (%*) do (
-    if "%%a"=="Debug" (
+    if "%%a"=="-debug" (
     	set BUILD_FLAGS=/Od /Zi /MDd /D "_DEBUG"
 		set PDB_PATH=%BUILD_DIR%\vc140.pdb
     	set LIB_PATH=libraries/debug/x64
     	set OUTPUT_NAME=%EXE_NAME%.exe
     	echo Using DEBUG build
     )
+    
+    if "%%a"=="-perf" (
+    	set OUTPUT_NAME=%EXE_NAME%_perf.exe
+    	set FIRST_SRC=perf_main.cpp
+    ) 
 )
 
 REM Create the build directory if it doesn't exist
@@ -33,9 +42,7 @@ if not exist "%VCVARS_PATH%" (
 REM Set up the Visual Studio envionment (for cl command)
 call "%VCVARS_PATH%" x64
 
-cl %BUILD_FLAGS% /I "include" /Fd"%PDB_PATH%" /Fo:%BUILD_DIR%/ /Fe:"%OUTPUT_NAME%" ^
-src/main.cpp ^
-/link /LIBPATH:"%LIB_PATH%"
+cl %BUILD_FLAGS% /I "include" /Fd"%PDB_PATH%" /Fo:%BUILD_DIR%/ /Fe:"%OUTPUT_NAME%" src/%FIRST_SRC% /link /LIBPATH:"%LIB_PATH%"
 
 @echo off
 

@@ -1,7 +1,5 @@
 #include "string_utility.h"
 #include <stdio.h>
-#include <string.h>
-#include <cctype>
 #include <stdarg.h>
 #include "tokenizer.h"
 
@@ -114,14 +112,6 @@ int inf_sscanf(char* str, const char* format, ...) {
 
     va_end(args);
     return numConversions;
-}
-
-void ToLowerCase(const char* src, char* dest, u32 destSize) {
-    u32 i;
-    for (i = 0; src[i] && i < destSize - 1; ++i) {
-        dest[i] = tolower((u8)src[i]);
-    }
-    dest[i] = '\0';
 }
 
 bool ExtractFilename(const char* path, char* buffer, size_t bufSize) {

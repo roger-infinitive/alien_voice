@@ -1,290 +1,270 @@
 #include <stdio.h>
-#include "file_io.h"
-#include "assert.h"
+#include <assert.h>
 
 #define WIN32_LEAN_AND_MEAN
 #include "windows.h"
 
-struct Timer {
-    LARGE_INTEGER start;
-};
+#include "file_io.h"
+#include "profiler_timer.h"
+#include "simple_tokenizer.h"
+#include "cmu_dictionary.h"
+#include "speech_audio.h"
 
-Timer StartTimer() {
-    Timer timer = {};
-    QueryPerformanceCounter(&timer.start);
-    return timer;
-}
-
-double StopTimer(Timer timer) {
-    LARGE_INTEGER stop;
-    QueryPerformanceCounter(&stop);
-    
-    LARGE_INTEGER frequency;
-    QueryPerformanceFrequency(&frequency);
-    
-    LONGLONG elapsedParts = stop.QuadPart - timer.start.QuadPart;
-    double time = (elapsedParts * 1000.0f) / frequency.QuadPart; 
-    return time;
-}
-
-enum ParsedTokenType {
-    TokenType_Identifier,
-    TokenType_EndOfLine,
-    TokenType_EndOfStream
-};
-
-struct ParsedToken {
-    ParsedTokenType type;
-    int length;
-    char* text;
-};
-
-struct Tokenizer {
-    char* at;
-};
-
-struct CMU_Entry {
-    ParsedToken key;
-    ParsedToken value;
-};
-
-ParsedToken NextToken(Tokenizer* tokenizer) {
-    ParsedToken token = {};
-    if (tokenizer->at == 0 || tokenizer->at[0] == 0) {
-        token.type = TokenType_EndOfStream;
+// This extracts the alpha chars like AA from AA0 and skips the 'stress' number. 
+// Examples of 'Phone' Tokens: B, Z, AA0, AA1, EH2, etc.
+ParsedToken NextPhoneToken(Tokenizer* tokenizer) {
+    ParsedToken token = ParseWhitespace(tokenizer);
+    if (token.type == ParsedTokenType_EndOfStream) {
         return token;
     }
     
-    while (tokenizer->at[0] == ' ' || tokenizer->at[0] == '\t' || tokenizer->at[0] == '\r') {
-        tokenizer->at++;
-    }
-        
-    if (tokenizer->at[0] == '\n') {
-        token.type = TokenType_EndOfLine;
-        tokenizer->at++;
-        return token;
-    }
+    ParsedToken symbol = {};
+    symbol.text = tokenizer->at;
+    symbol.type = ParsedTokenType_Identifier;
     
-    token.type = TokenType_Identifier;    
-    token.text = tokenizer->at;
     for (;;) {
-        if (tokenizer->at[0] == 0 || IsWhitespace(tokenizer->at[0])) {
+        if (tokenizer->at[0] == 0) {
             break;
-        }
-        token.length++;
-        tokenizer->at++;
-    }
-    
-    return token;
-}
-
-ParsedToken NextTokenLine(Tokenizer* tokenizer) {
-    ParsedToken token = {};
-    if (tokenizer->at == 0 || tokenizer->at[0] == 0) {
-        token.type = TokenType_EndOfStream;
-        return token;
-    }
-    
-    while (tokenizer->at[0] == ' ' || tokenizer->at[0] == '\t' || tokenizer->at[0] == '\r') {
-        tokenizer->at++;
-    }
-        
-    if (tokenizer->at[0] == '\n') {
-        token.type = TokenType_EndOfLine;
-        tokenizer->at++;
-        return token;
-    }
-    
-    token.type = TokenType_Identifier;    
-    token.text = tokenizer->at;
-    for (;;) {
-        if (tokenizer->at[0] == '\n') {
+        } else if (IsAlpha(tokenizer->at[0])) {
+            symbol.length++;
+        } else if (tokenizer->at[0] == ' ' || IsNumber(tokenizer->at[0])) {
             tokenizer->at++;
             break;
-        } else if (tokenizer->at[0] == 0) {
-            break;
         }
-        
-        token.length++;
         tokenizer->at++;
     }
     
-    return token;
+    return symbol;
 }
 
-void ExtendToken(ParsedToken* token, ParsedToken extendTo) {
-    token->length = (extendTo.text - token->text) + extendTo.length - 1;
-}
-
-int entry_count;
-CMU_Entry* entries;
-
-struct CMU_Cluster {
-    char c;
-    CMU_Entry* first;
-    int count;
-    
-    int sub_cluster_count;
-    CMU_Cluster* sub_clusters;
+struct StringPair {
+    const char* key;
+    const char* value; 
 };
 
-#define MAX_CLUSTERS 2048
-int total_clusters;
-CMU_Cluster root_cluster;
-CMU_Cluster* clusters;
+StringPair vowel_map[] = {
+    { "AA", "A" },
+    { "AE", "A" },
+    { "AH", "A" },
+    { "AD", "U" },
+    { "AW", "U" },
+    { "AY", "I" },
+    { "EH", "I" },
+    { "ER", "U" },
+    { "EY", "I" },
+    { "IH", "I" },
+    { "IY", "I" },
+    { "OW", "U" },
+    { "OY", "U" },
+    { "UH", "U" },
+    { "UW", "U" },
+};
 
-CMU_Cluster* InsertCluster(CMU_Entry* entry, int text_index) {
-    assert(total_clusters < MAX_CLUSTERS);
+StringPair consonant_map[] = {
+    { "P", "K" },
+    { "B", "K" },
+    { "T", "T" },
+    { "D", "T" },
+    { "K", "Q" },
+    { "G", "Q" },
+    { "CH", "Q" },
+    { "JH", "Q" },
+    { "F", "X" },
+    { "V", "X" },
+    { "TH", "X" },
+    { "TH", "X" },
+    { "S", "S" },
+    { "Z", "S" },
+    { "SH", "Q" },
+    { "ZH", "X" },
+    { "HH", "X" },
+    { "M", "M" },
+    { "N", "N" },
+    { "L", "R" },
+    { "NG", "N" },
+    { "L", "R" },
+    { "R", "R" },
+    { "W", "R" },
+    { "Y", "R" },
+};
 
-    CMU_Cluster* cluster = &clusters[total_clusters];
-    cluster->c = entry->key.text[text_index];
-    cluster->first = entry;
-    cluster->count = 1;
-    cluster->sub_cluster_count = 0;
-    cluster->sub_clusters = 0;
-    
-    total_clusters += 1;
-    return cluster;
-}
+enum Unit {
+    Unit_XA,
+    Unit_XI, 
+    Unit_XU,
+    Unit_KA,
+    Unit_KI,
+    Unit_KU,
+    Unit_QA,
+    Unit_QI,
+    Unit_MI,
+    Unit_MA,
+    Unit_NA,
+    Unit_RA,
+    Unit_RI,
+    Unit_RU,
+    Unit_TA,
+    Unit_TI,
+    Unit_Count,
+};
 
-void BuildSubClusters(CMU_Cluster* cluster, int text_index) {
-    CMU_Cluster* sub_cluster = InsertCluster(cluster->first, text_index);
-    cluster->sub_clusters = sub_cluster;
-    cluster->sub_cluster_count = 1;
-            
-    for (int j = 1; j < cluster->count; j++) {
-        CMU_Entry* entry = &cluster->first[j];
-        
-        if (entry->key.length <= text_index) {
-            sub_cluster->count += 1;
-            continue;
-        } 
-        
-        if (sub_cluster->c != entry->key.text[text_index]) {
-            sub_cluster = InsertCluster(entry, text_index);
-            cluster->sub_cluster_count += 1;
-        } else {
-            sub_cluster->count += 1;
-        }
-    }        
-}
+const char* UnitStrings[] = {
+    "XA",
+    "XI",
+    "XU",
+    "KA",
+    "KI",
+    "KU",
+    "QA",
+    "QI",
+    "MA",
+    "MI",
+    "NA",
+    "RA",
+    "RI",
+    "RU",
+    "TA",
+    "TI"
+};
 
-// Slow version (used to demonstrate speed differences), use GetPhones() instead.
-bool GetPhonesLinear(const char* search, ParsedToken* token) {
-    int search_length = CStringLength(search);
-    
-    for (int i = 0; entry_count; i++) {
-        CMU_Entry* entry = &entries[i];
-        if (StringEquals(search, search_length, entry->key.text, entry->key.length)) {
-            *token = entry->value;
-            return true;
+const char* UnitAssetPaths[] {
+    "data/audio/xa.mp3",
+    "data/audio/xi.mp3",
+    "data/audio/xu.mp3",
+    "data/audio/ka.mp3",
+    "data/audio/ki.mp3",
+    "data/audio/ku.mp3",
+    "data/audio/qa.mp3",
+    "data/audio/qi.mp3",
+    "data/audio/ma.mp3",
+    "data/audio/mi.mp3",
+    "data/audio/na.mp3",
+    "data/audio/ra.mp3",
+    "data/audio/ri.mp3",
+    "data/audio/ru.mp3",
+    "data/audio/ta.mp3",
+    "data/audio/ti.mp3",
+};
+
+UnitClip unit_clips[Unit_Count];
+
+bool IsVowel(ParsedToken token, int* index) {
+    if (token.length == 2) {
+        for (int i = 0; i < countOf(vowel_map); i++) {
+            if (vowel_map[i].key[0] == token.text[0] && vowel_map[i].key[1] == token.text[1]) {
+                *index = i;
+                return true;
+            }  
         }
     }
-    
     return false;
 }
 
-bool GetPhones(const char* search, ParsedToken* token) {
-    int search_length = CStringLength(search);
-    
-    for (int i = 0; i < root_cluster.sub_cluster_count; i++) {
-        CMU_Cluster* cluster = &root_cluster.sub_clusters[i];
-        if (cluster->c == search[0]) {
-            for (int j = 0; j < cluster->sub_cluster_count; j++) {
-                CMU_Cluster* sub_cluster = &cluster->sub_clusters[j];
-                
-                // nocheckin: what if its a single letter?
-                if (sub_cluster->c == search[1]) {
-                    for (int k = 0; k < sub_cluster->count; k++) {
-                        CMU_Entry* entry = &sub_cluster->first[k];
-                        if (StringEquals(search, search_length, entry->key.text, entry->key.length)) {
-                            *token = entry->value;
-                            return true;
-                        }
-                    }
-                }
-            }
+bool IsConsonant(ParsedToken token, int* index) {
+    for (int i = 0; i < countOf(consonant_map); i++) {
+        if (StringEquals(consonant_map[i].key, CStringLength(consonant_map[i].key), token.text, token.length)) {
+            *index = i;
+            return true;
         }
     }
-    
     return false;
 }
 
 int main(int argc, char** argv) {
-    MemoryBuffer mb = {};
-    if (!ReadEntireFileAndNullTerminate("data/cmudict.dict", &mb, HeapAllocator)) {
-        fprintf(stderr, "Failed to read cmudict.dict.\n");
+    const char* dict_filepath = "data/cmudict.dict";
+
+    CMU_Dictionary cmu_dict = {};
+    if (!LoadDictionary(dict_filepath, &cmu_dict, HeapAllocator)) {
         return 1;
     }
     
+    // Load Unit Clips
+    for (int i = 0; i < countOf(UnitAssetPaths); i++) {
+        const char* path = UnitAssetPaths[i];
+        LoadClipF32(&unit_clips[i], path, 1, 48000);
+    }
+    
+    ma_engine engine;
+    ma_engine_init(0, &engine);
+    
+    const char* sentence = "Space exploration turns distant points of light into places with landscapes weather and history expanding our sense of what is possible By sending probes telescopes and people beyond Earth we learn how planets form how stars live and die and how our own world fits into a much larger story The same pursuit also drives practical breakthroughs from sharper imaging and safer materials to new ways of communicating while uniting people around a shared curiosity Most of all it invites a rare kind of perspective that our home is precious our knowledge is still young and the universe is vast enough to keep surprising us";
+    
+    bool use_example_text = true;
+    if (argc > 1) {
+        sentence = argv[1];        
+    }
+    
     Tokenizer tokenizer = {};
-    tokenizer.at = mb.buffer;
+    tokenizer.at = (char*)sentence;
     
-    for (;;) {
-        if (tokenizer.at[0] == 0) {
-            break;
-        } else if (tokenizer.at[0] == '\n') {
-            entry_count += 1;
+    const int MAX_STRING_BUFFER = 256;
+    char search_buffer[MAX_STRING_BUFFER];
+    
+    int output_length = 0;
+    UnitClip output[512];
+    
+    ParsedToken token = NextToken(&tokenizer);
+    while (token.type != ParsedTokenType_EndOfStream) {
+        switch (token.type) {
+            case ParsedTokenType_Identifier: {
+                assert(token.length < MAX_STRING_BUFFER);
+                memcpy(search_buffer, token.text, token.length);
+                search_buffer[token.length] = 0;
+                
+                ToLowerCase(search_buffer, token.length);
+                
+                char onset_consonant = 'X';
+                
+                ParsedToken phones = {};
+                if (GetPhones(&cmu_dict, search_buffer, &phones)) {
+                    char phones_buffer[MAX_STRING_BUFFER];
+                    memcpy(phones_buffer, phones.text, phones.length);
+                    phones_buffer[phones.length] = 0;
+                
+                    Tokenizer phones_tokenizer = {};
+                    phones_tokenizer.at = phones_buffer;
+                    
+                    for (;;) {
+                        ParsedToken symbol = NextPhoneToken(&phones_tokenizer);
+                        if (symbol.type == ParsedTokenType_EndOfStream) {
+                            break;
+                        }
+                        
+                        int index = 0;
+                        if (IsVowel(symbol, &index)) {
+                            bool found = false;
+                            
+                            for (int i = 0; i < countOf(UnitStrings); i++) {
+                                const char* unit_str = UnitStrings[i];
+                                if (unit_str[0] == onset_consonant && unit_str[1] == vowel_map[index].value[0]) {
+                                    output[output_length++] = unit_clips[i];
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!found) {
+                                fprintf(stderr, "NOT FOUND: %c%c\n", onset_consonant, vowel_map[index].value[0]);
+                            }
+                        } else if (IsConsonant(symbol, &index)) {
+                            onset_consonant = consonant_map[index].value[0];
+                        }
+                    }
+                    
+                    printf("%s: %.*s\n", search_buffer, phones.length, phones.text);
+                } else {
+                    printf("Unable to find word in dictionary.\n");
+                }
+            } break;
         }
-        tokenizer.at++;
-    }
-
-    printf("entry_count: %d\n", entry_count);
-    entries = (CMU_Entry*)HeapAlloc(entry_count * sizeof(CMU_Entry));
-    
-    int current_entry = 0;
-    tokenizer.at = mb.buffer;
-    for (;;) {
-        ParsedToken token = NextToken(&tokenizer);
-        if (token.type == TokenType_EndOfStream) {
-            break;
-        }
-        
-        CMU_Entry* entry = &entries[current_entry];
-        entry->key = token;
-        entry->value = NextTokenLine(&tokenizer);
-        current_entry++;
+        token = NextToken(&tokenizer);
     }
     
-    
-    // Build an acceleration structure
-    {
-        clusters = (CMU_Cluster*)HeapAlloc(MAX_CLUSTERS * sizeof(CMU_Cluster));
-        
-        root_cluster.c = entries[0].key.text[0];
-        root_cluster.first = &entries[0];
-        root_cluster.count = entry_count;
-        
-        BuildSubClusters(&root_cluster, 0);
-
-        for (int i = 0; i < root_cluster.sub_cluster_count; i++) {
-            CMU_Cluster* cluster = &root_cluster.sub_clusters[i];
-            BuildSubClusters(cluster, 1);
-        }
-    }
-    
-    const char* search = "zwicker";
-    
-    int max_iterations = 10000;
-    
-    Timer timer = StartTimer();
-    ParsedToken phones = {};
-    for (int i = 0; i < max_iterations; i++) {
-        GetPhonesLinear(search, &phones);
-    }
-    double ms = StopTimer(timer);
-    printf("%.*s\n", phones.length, phones.text);
-    printf("Time: %f ms\n", ms);
-
-    printf("\n");
-    timer = StartTimer();
-    phones = {};
-    for (int i = 0; i < max_iterations; i++) {
-        GetPhones(search, &phones);
-    }
-    ms = StopTimer(timer);
-    printf("%.*s\n", phones.length, phones.text);
-    printf("Time: %f ms\n", ms);
+    ma_uint32 xfadeFrames = (ma_uint32)(0.1f * 48000);
+    RenderedAudio rendered_audio = RenderConcatenated(output, 0, output_length, 1, 48000, xfadeFrames);
+    PlayRendered(&engine, &rendered_audio);
+    double ms = (rendered_audio.frameCount * 1000.0) / (double)rendered_audio.sampleRate;
+    Sleep(ms);
 
     return 0;
 }
