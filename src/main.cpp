@@ -43,107 +43,29 @@ struct StringPair {
 };
 
 StringPair vowel_map[] = {
-    { "AA", "A" },
-    { "AE", "A" },
-    { "AH", "A" },
-    { "AD", "U" },
-    { "AW", "U" },
-    { "AY", "I" },
-    { "EH", "I" },
-    { "ER", "U" },
-    { "EY", "I" },
-    { "IH", "I" },
-    { "IY", "I" },
-    { "OW", "U" },
-    { "OY", "U" },
-    { "UH", "U" },
-    { "UW", "U" },
+    #define VOWEL(symbol, alien_vowel) { #symbol, #alien_vowel },
+    #include "symbols.xmacro"
 };
 
 StringPair consonant_map[] = {
-    { "P", "K" },
-    { "B", "K" },
-    { "T", "T" },
-    { "D", "T" },
-    { "K", "Q" },
-    { "G", "Q" },
-    { "CH", "Q" },
-    { "JH", "Q" },
-    { "F", "X" },
-    { "V", "X" },
-    { "TH", "X" },
-    { "TH", "X" },
-    { "S", "S" },
-    { "Z", "S" },
-    { "SH", "Q" },
-    { "ZH", "X" },
-    { "HH", "X" },
-    { "M", "M" },
-    { "N", "N" },
-    { "L", "R" },
-    { "NG", "N" },
-    { "L", "R" },
-    { "R", "R" },
-    { "W", "R" },
-    { "Y", "R" },
+    #define CONSONANT(symbol, alien_consonant) { #symbol, #alien_consonant },
+    #include "symbols.xmacro"
 };
 
 enum Unit {
-    Unit_XA,
-    Unit_XI, 
-    Unit_XU,
-    Unit_KA,
-    Unit_KI,
-    Unit_KU,
-    Unit_QA,
-    Unit_QI,
-    Unit_MI,
-    Unit_MA,
-    Unit_NA,
-    Unit_RA,
-    Unit_RI,
-    Unit_RU,
-    Unit_TA,
-    Unit_TI,
-    Unit_Count,
+    #define ALIEN_SPEECH_UNIT(symbol) Unit_##symbol,
+    #include "symbols.xmacro"
+    Unit_Count
 };
 
 const char* UnitStrings[] = {
-    "XA",
-    "XI",
-    "XU",
-    "KA",
-    "KI",
-    "KU",
-    "QA",
-    "QI",
-    "MA",
-    "MI",
-    "NA",
-    "RA",
-    "RI",
-    "RU",
-    "TA",
-    "TI"
+    #define ALIEN_SPEECH_UNIT(symbol) #symbol,
+    #include "symbols.xmacro"
 };
 
 const char* UnitAssetPaths[] {
-    "data/audio/xa.mp3",
-    "data/audio/xi.mp3",
-    "data/audio/xu.mp3",
-    "data/audio/ka.mp3",
-    "data/audio/ki.mp3",
-    "data/audio/ku.mp3",
-    "data/audio/qa.mp3",
-    "data/audio/qi.mp3",
-    "data/audio/ma.mp3",
-    "data/audio/mi.mp3",
-    "data/audio/na.mp3",
-    "data/audio/ra.mp3",
-    "data/audio/ri.mp3",
-    "data/audio/ru.mp3",
-    "data/audio/ta.mp3",
-    "data/audio/ti.mp3",
+    #define ALIEN_SPEECH_UNIT(symbol) "data/audio/" #symbol ".mp3",
+    #include "symbols.xmacro"
 };
 
 UnitClip unit_clips[Unit_Count];
