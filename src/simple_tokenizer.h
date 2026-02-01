@@ -1,6 +1,8 @@
 #ifndef _SIMPLE_TOKENIZER_H_
 #define _SIMPLE_TOKENIZER_H_
 
+#include "string_utility.h"
+
 struct Tokenizer {
     char* at;
 };

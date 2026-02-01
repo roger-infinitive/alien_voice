@@ -1,7 +1,9 @@
 #ifndef _CMU_DICTIONARY_H_
 #define _CMU_DICTIONARY_H_
 
+#include "assert.h"
 #include "simple_tokenizer.h"
+#include "file_io.h"
 
 #define MAX_CMU_CLUSTERS 2048
 
@@ -31,7 +33,6 @@ struct CMU_Dictionary {
     int total_clusters;
     CMU_Cluster root_cluster;
     CMU_Cluster* clusters;
-
 };
 
 CMU_Cluster* InsertCluster(CMU_Dictionary* dict, CMU_Entry* first, int text_index) {
@@ -69,6 +70,9 @@ void BuildSubClusters(CMU_Dictionary* dict, CMU_Cluster* cluster, int text_index
         }
     }        
 }
+
+// In order to generate clusters correctly for search, the input file (cmudict.dict) must be 
+// alphabetically sorted otherwise the search functions are extremely likely to fail.
 
 bool LoadDictionary(const char* filepath, CMU_Dictionary* dict, Allocator allocator) {
     const char* dict_filepath = "data/cmudict.dict";

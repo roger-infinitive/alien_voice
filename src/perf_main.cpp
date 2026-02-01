@@ -16,23 +16,24 @@ int main(int argc, char** argv) {
     const char* search = "zwicker";
     
     // Linear search
+    printf("\nRunning %d iterations for GetPhonesLinear...\n", max_iterations);
     Timer timer = StartTimer();
     ParsedToken phones = {};
     for (int i = 0; i < max_iterations; i++) {
-        GetPhonesLinear(search, &phones);
+        GetPhonesLinear(&cmu_dict, search, &phones);
     }
     double ms = StopTimer(timer);
-    printf("%.*s\n", phones.length, phones.text);
-    printf("Time: %f ms\n", ms);
+    printf("    Result: %.*s\n", phones.length, phones.text);
+    printf("    Time: %f ms\n", ms);
 
     // Clustered search
-    printf("\n");
+    printf("\nRunning %d iterations for GetPhones (Clustered)...\n", max_iterations);
     timer = StartTimer();
     phones = {};
     for (int i = 0; i < max_iterations; i++) {
-        GetPhones(search, &phones);
+        GetPhones(&cmu_dict, search, &phones);
     }
     ms = StopTimer(timer);
-    printf("%.*s\n", phones.length, phones.text);
-    printf("Time: %f ms\n", ms);
+    printf("    Result: %.*s\n", phones.length, phones.text);
+    printf("    Time: %f ms\n", ms);
 }
