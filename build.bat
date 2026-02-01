@@ -13,18 +13,20 @@ set BUILD_FLAGS=/MD /O2 /GL /Ob2 /Oy
 set LIB_PATH=libraries/x64
 set OUTPUT_NAME=%EXE_NAME%.exe
 set FIRST_SRC=main.cpp
+set IS_DEBUG=0
 
 REM Check arguments
 for %%a in (%*) do (
-    if "%%a"=="-debug" (
+    if "%%a"=="--debug" (
     	set BUILD_FLAGS=/Od /Zi /MDd /D "_DEBUG"
 		set PDB_PATH=%BUILD_DIR%\vc140.pdb
     	set LIB_PATH=libraries/debug/x64
     	set OUTPUT_NAME=%EXE_NAME%.exe
+    	set IS_DEBUG=1
     	echo Using DEBUG build
     )
     
-    if "%%a"=="-perf" (
+    if "%%a"=="--perf" (
     	set OUTPUT_NAME=%EXE_NAME%_perf.exe
     	set FIRST_SRC=perf_main.cpp
     ) 
@@ -52,7 +54,7 @@ if errorlevel 1 (
 	exit /b 1
 )
 
-if "%~1" == "Debug" (
+if %IS_DEBUG%==1 (
 	powershell -Command "Write-Host 'Debug build complete!' -ForegroundColor Green"
 ) else (
 	powershell -Command "Write-Host 'Release build complete!' -ForegroundColor Green"

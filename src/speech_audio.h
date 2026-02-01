@@ -19,6 +19,7 @@ bool LoadClipF32(UnitClip* c, const char* path, ma_uint32 channels, ma_uint32 sa
 
     ma_result r = ma_decode_file(path, &cfg, &frameCount, &pcmFrames);
     if (r != MA_SUCCESS) {
+        fprintf(stderr, "Failed to decode audio file: %s\n", path);
         return false;
     }
 
